@@ -1,0 +1,57 @@
+service: slack-autoresponder
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: prod
+  profile: eamann
+  region: us-west-2
+  memorySize: 128
+  environment:
+    SLACK_SIGNING_SECRET: ${file(secrets.yml):slack.signing_secret}
+    SLACK_ACCESS_TOKEN: ${file(secrets.yml):slack.access_token}
+    SLACK_USER_ID: ${file(secrets.yml):slack.user_id}
+    SLACK_IGNORE_LIST: ${file(secrets.yml):slack.ignore_users}
+    TWILIO_SID: ${file(secrets.yml):twilio.sid}
+    TWILIO_TOKEN: ${file(secrets.yml):twilio.token}
+    TWILIO_PHONE: ${file(secrets.yml):twilio.phone}
+    DEST_PHONE: ${file(secrets.yml):destination_phone}
+    CONTACT_TABLE: { "Ref": "Contacts" }
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - { "Fn::GetAtt": ["Contacts", "Arn"] }
+functions:
+  app:
+    handler: app/app.handler
+    events:
+      - http:
+          path: /slack/events
+          method: ANY
+          cors: true
+
+# Additional CloudFormation configuration
+resources:
+  Resources:
+    Contacts:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Delete
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: uid
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: uid
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:service}-${opt:stage, self:provider.stage}-contacts
