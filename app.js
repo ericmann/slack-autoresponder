@@ -131,7 +131,11 @@ slackEvents.on('message', async (event) => {
   const message = event.text;
   const channel = event.channel;
 
-  if (message.replace(/\W/g, '').toLowerCase().startsWith('urgent')) {
+  if (event.channel_type !== 'im' || (event.subtype !== undefined && event.subtype === 'message_deleted')) {
+    return;
+  }
+
+  if (message !== undefined && message.replace(/\W/g, '').toLowerCase().startsWith('urgent')) {
     console.log('Urgent message. Contacting via SMS!');
     let user = await getUsername(event.user);
     await sms(user);
