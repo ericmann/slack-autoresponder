@@ -3,11 +3,28 @@ const express = require('express');
 const { WebClient } = require('@slack/web-api');
 const { createEventAdapter } = require('@slack/events-api');
 const AWS = require('aws-sdk');
+const smsTool = process.env.SMS_TOOL;
 
 // Twilio Integration
 const accountSid = process.env.TWILIO_SID;
 const authToken = process.env.TWILIO_TOKEN;
-const twilio = require('twilio')(accountSid, authToken);
+let twilio = null;
+if (smsTool === 'twilio' && accountSid && authToken) {
+  twilio = require('twilio')(accountSid, authToken);
+}
+
+// RingCentral Integration
+const SDK = require('@ringcentral/sdk').SDK
+const ringCentralClientId = process.env.RINGCENTRAL_CLIENT_ID;
+const ringCentralClientSecret = process.env.RINGCENTRAL_CLIENT_SECRET;
+let rcsdk = null;
+if (smsTool === 'ringcentral' && ringCentralClientId && ringCentralClientSecret) {
+  rcsdk = new SDK({
+    server: process.env.RINGCENTRAL_SERVER,
+    clientId: ringCentralClientId,
+    clientSecret: ringCentralClientSecret
+  });
+}
 
 // Get our environment variables
 const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
@@ -53,12 +70,41 @@ async function getUsername(userId) {
   return 'A User';
 }
 
-async function sms(user) {
+async function rc_sms(user) {
+  if (rcsdk === null) {
+    console.log('No RingCentral client');
+    return false;
+  }
+
+  let platform = rcsdk.platform();
+  await platform.login({
+    username: process.env.RINGCENTRAL_USERNAME,
+    password: process.env.RINGCENTRAL_PASSWORD,
+    extension: process.env.RINGCENTRAL_EXTENSION
+  })
+
+  await platform.post('/restapi/v1.0/account/~/extension/~/sms', {
+    from: {'phoneNumber': process.env.RINGCENTRAL_USERNAME},
+    to: [{'phoneNumber': process.env.DEST_PHONE}],
+    text: `${user} has an urgent need on Slack.`
+  });
+
+  return true;
+}
+
+async function twilio_sms(user) {
+  if (twilio === null) {
+    console.log('No Twilio client');
+    return false;
+  }
+
   await twilio.messages.create({
     body: `${user} has an urgent need on Slack.`,
     from: process.env.TWILIO_PHONE,
     to: process.env.DEST_PHONE
   });
+
+  return true;
 }
 
 async function dynamoUpdateUIDExpiration(uid) {
@@ -138,8 +184,17 @@ slackEvents.on('message', async (event) => {
   if (message !== undefined && message.replace(/\W/g, '').toLowerCase().startsWith('urgent')) {
     console.log('Urgent message. Contacting via SMS!');
     let user = await getUsername(event.user);
-    await sms(user);
-    await urgentMessage(channel);
+    try {
+      let sent;
+      if (smsTool === 'twilio') {
+        sent = await twilio_sms(user);
+      } else {
+        sent = await rc_sms(user);
+      }
+      sent && await urgentMessage(channel);
+    } catch(error) {
+      console.log(error);
+    }
     return;
   }
 

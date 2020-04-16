@@ -11,6 +11,13 @@ provider:
     SLACK_ACCESS_TOKEN: ${file(secrets.yml):slack.access_token}
     SLACK_USER_ID: ${file(secrets.yml):slack.user_id}
     SLACK_IGNORE_LIST: ${file(secrets.yml):slack.ignore_users}
+    SMS_TOOL: ${file(secrets.yml):sms_tool}
+    RINGCENTRAL_CLIENT_ID: ${file(secrets.yml):ringcentral.client_id}
+    RINGCENTRAL_CLIENT_SECRET: ${file(secrets.yml):ringcentral.client_secret}
+    RINGCENTRAL_SERVER: ${file(secrets.yml):ringcentral.server}
+    RINGCENTRAL_USERNAME: ${file(secrets.yml):ringcentral.username}
+    RINGCENTRAL_PASSWORD: ${file(secrets.yml):ringcentral.password}
+    RINGCENTRAL_EXT: ${file(secrets.yml):ringcentral.extension}
     TWILIO_SID: ${file(secrets.yml):twilio.sid}
     TWILIO_TOKEN: ${file(secrets.yml):twilio.token}
     TWILIO_PHONE: ${file(secrets.yml):twilio.phone}
